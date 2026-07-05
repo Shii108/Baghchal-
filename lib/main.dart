@@ -1,6 +1,8 @@
+import 'dart:math';
+
+import 'package:baghchal_app/baghchal_rules.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'dart:math';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() => runApp(const BaghchalApp());
@@ -94,7 +96,6 @@ class ThemeColors {
   final Color boardBg;
   final Color lineColor;
   final Color dotColor;
-  final Color boardFrame;
   final Color boardShadow;
   final Color tigerColor;
   final Color goatColor;
@@ -106,7 +107,6 @@ class ThemeColors {
     required this.boardBg,
     required this.lineColor,
     required this.dotColor,
-    required this.boardFrame,
     required this.boardShadow,
     required this.tigerColor,
     required this.goatColor,
@@ -120,7 +120,6 @@ class ThemeColors {
       boardBg: Color(0xFF2d5a27),
       lineColor: Color(0xFFdcc29e),
       dotColor: Color(0xFFdcc29e),
-      boardFrame: Color(0xFFb3926e),
       boardShadow: Color(0xFF8a7a5a),
       tigerColor: Color(0xFFE67E22),
       goatColor: Color(0xFFFFFFFF),
@@ -132,7 +131,6 @@ class ThemeColors {
       boardBg: Color(0xFF1a4a6b),
       lineColor: Color(0xFFb0d4f1),
       dotColor: Color(0xFFb0d4f1),
-      boardFrame: Color(0xFF4a7a9c),
       boardShadow: Color(0xFF2a5a7a),
       tigerColor: Color(0xFFE67E22),
       goatColor: Color(0xFFFFFFFF),
@@ -144,7 +142,6 @@ class ThemeColors {
       boardBg: Color(0xFF6b4c3b),
       lineColor: Color(0xFFe8d5b5),
       dotColor: Color(0xFFe8d5b5),
-      boardFrame: Color(0xFF8a6b4a),
       boardShadow: Color(0xFF5a3b2a),
       tigerColor: Color(0xFFE67E22),
       goatColor: Color(0xFFFFFFFF),
@@ -156,7 +153,6 @@ class ThemeColors {
       boardBg: Color(0xFF3a2a5a),
       lineColor: Color(0xFFc9b8e8),
       dotColor: Color(0xFFc9b8e8),
-      boardFrame: Color(0xFF6a4a8a),
       boardShadow: Color(0xFF2a1a4a),
       tigerColor: Color(0xFFE67E22),
       goatColor: Color(0xFFFFFFFF),
@@ -168,7 +164,6 @@ class ThemeColors {
       boardBg: Color(0xFF1a1a1a),
       lineColor: Color(0xFF888888),
       dotColor: Color(0xFF888888),
-      boardFrame: Color(0xFF444444),
       boardShadow: Color(0xFF0a0a0a),
       tigerColor: Color(0xFFE67E22),
       goatColor: Color(0xFFCCCCCC),
@@ -180,7 +175,6 @@ class ThemeColors {
       boardBg: Color(0xFFb58a5a),
       lineColor: Color(0xFF5a3a1a),
       dotColor: Color(0xFF5a3a1a),
-      boardFrame: Color(0xFF8a6a3a),
       boardShadow: Color(0xFF7a5a2a),
       tigerColor: Color(0xFFE67E22),
       goatColor: Color(0xFFFFFFFF),
@@ -192,7 +186,6 @@ class ThemeColors {
       boardBg: Color(0xFF4a4a4a),
       lineColor: Color(0xFFaaaaaa),
       dotColor: Color(0xFFaaaaaa),
-      boardFrame: Color(0xFF2a2a2a),
       boardShadow: Color(0xFF1a1a1a),
       tigerColor: Color(0xFFE67E22),
       goatColor: Color(0xFFCCCCCC),
@@ -204,7 +197,6 @@ class ThemeColors {
       boardBg: Color(0xFFc9a84c),
       lineColor: Color(0xFF8a6a2a),
       dotColor: Color(0xFF8a6a2a),
-      boardFrame: Color(0xFFa8863a),
       boardShadow: Color(0xFF8a6a2a),
       tigerColor: Color(0xFFE67E22),
       goatColor: Color(0xFFFFFFFF),
@@ -293,8 +285,8 @@ class BaghchalScreen extends StatefulWidget {
 
 class _BaghchalScreenState extends State<BaghchalScreen> {
   // ─── Constants ──────────────────────────────────────────
-  static const int boardSize = 25;
-  static const int maxGoats = 20;
+  static const int boardSize = BaghchalRules.boardSize;
+  static const int maxGoats = BaghchalRules.maxGoats;
 
   // ─── Game state ──────────────────────────────────────────
   List<int> board = List.filled(boardSize, 0);
@@ -316,126 +308,98 @@ class _BaghchalScreenState extends State<BaghchalScreen> {
   int? lastMoveFrom;
   int? lastMoveTo;
 
-  // ─── Anti‑loop tracking ──────────────────────────────────
-  Map<int, Map<String, int>> pieceLastMove = {};
-
-  void _updatePieceLastMove(int pieceIndex, int from, int to) {
-    final previous = pieceLastMove[pieceIndex];
-    if (previous != null && previous['from'] == to && previous['to'] == from) {
-      pieceLastMove[pieceIndex] = {
-        'from': from,
-        'to': to,
-        'count': (previous['count'] ?? 0) + 1,
-      };
-    } else {
-      pieceLastMove[pieceIndex] = {'from': from, 'to': to, 'count': 1};
-    }
-  }
-
-  bool _isIllegalLoop(int pieceIndex, int from, int to) {
-    final previous = pieceLastMove[pieceIndex];
-    if (previous == null) return false;
-    if (previous['from'] == to && previous['to'] == from) {
-      final count = (previous['count'] ?? 0) + 1;
-      if (count >= 3) return true;
-    }
-    return false;
-  }
-
-  void _clearPieceHistory(int pieceIndex) {
-    pieceLastMove.remove(pieceIndex);
-  }
+  // ─── Repetition tracking ─────────────────────────────────
+  final Set<String> positionHistory = <String>{};
 
   // ─── Adjacency ──────────────────────────────────────────
-  final List<List<int>> adjacency = List.generate(boardSize, (_) => []);
+  final List<List<int>> adjacency = BaghchalRules.buildAdjacency();
 
-  void buildAdjacency() {
-    const lineSegments = [
-      [0, 1, 2, 3, 4],
-      [5, 6, 7, 8, 9],
-      [10, 11, 12, 13, 14],
-      [15, 16, 17, 18, 19],
-      [20, 21, 22, 23, 24],
-      [0, 5, 10, 15, 20],
-      [1, 6, 11, 16, 21],
-      [2, 7, 12, 17, 22],
-      [3, 8, 13, 18, 23],
-      [4, 9, 14, 19, 24],
-      [0, 6, 12, 18, 24],
-      [4, 8, 12, 16, 20],
-      [2, 6, 10],
-      [2, 8, 14],
-      [10, 16, 22],
-      [14, 18, 22],
-      [0, 12],
-      [4, 12],
-      [20, 12],
-      [24, 12],
-      [2, 12],
-      [12, 22],
-      [22, 10],
-      [10, 2],
-    ];
-    final edges = <String>{};
-    for (final seg in lineSegments) {
-      for (int i = 0; i < seg.length - 1; i++) {
-        final a = seg[i], b = seg[i + 1];
-        final key = '${min(a, b)}-${max(a, b)}';
-        if (!edges.contains(key)) {
-          edges.add(key);
-          adjacency[a].add(b);
-          adjacency[b].add(a);
-        }
-      }
-    }
+  String _positionKey(List<int> state, String nextTurn, String nextPhase) {
+    return '$nextPhase|$nextTurn|${state.join(',')}';
   }
 
-  List<int> getNeighbors(int idx) => adjacency[idx];
+  bool _wouldRepeatPosition({
+    required List<int> state,
+    required int piece,
+    required int from,
+    required int to,
+    required String nextTurn,
+    int? capture,
+  }) {
+    if (phase != 'movement') return false;
+
+    final nextBoard = List<int>.from(state);
+    nextBoard[from] = BaghchalRules.empty;
+    nextBoard[to] = piece;
+    if (capture != null) {
+      nextBoard[capture] = BaghchalRules.empty;
+    }
+
+    return positionHistory.contains(
+      _positionKey(nextBoard, nextTurn, 'movement'),
+    );
+  }
+
+  void _recordCurrentPosition() {
+    if (phase != 'movement') return;
+    if (turn != 'goat' && turn != 'tiger') return;
+
+    positionHistory.add(_positionKey(board, turn, phase));
+  }
+
+  bool _matchesMove(Map<String, dynamic> move, int to, int? capture) {
+    return move['to'] == to && move['capture'] == capture;
+  }
 
   // ─── Tiger moves ────────────────────────────────────────
   List<Map<String, dynamic>> getTigerMoves(int idx) {
-    final moves = <Map<String, dynamic>>[];
-    // Walk
-    for (final n in getNeighbors(idx)) {
-      if (board[n] == 0) moves.add({'to': n, 'capture': null, 'type': 'walk'});
-    }
-    // Capture (jump)
-    final r = idx ~/ 5, c = idx % 5;
-    const dirs = [
-      [-1, -1],
-      [-1, 0],
-      [-1, 1],
-      [0, -1],
-      [0, 1],
-      [1, -1],
-      [1, 0],
-      [1, 1]
-    ];
-    for (final d in dirs) {
-      final nr1 = r + d[0], nc1 = c + d[1];
-      if (nr1 >= 0 && nr1 < 5 && nc1 >= 0 && nc1 < 5) {
-        final idx1 = nr1 * 5 + nc1;
-        if (board[idx1] == 2 && getNeighbors(idx).contains(idx1)) {
-          final nr2 = r + 2 * d[0], nc2 = c + 2 * d[1];
-          if (nr2 >= 0 && nr2 < 5 && nc2 >= 0 && nc2 < 5) {
-            final idx2 = nr2 * 5 + nc2;
-            if (board[idx2] == 0 && getNeighbors(idx1).contains(idx2)) {
-              moves.add({'to': idx2, 'capture': idx1, 'type': 'capture'});
-            }
-          }
-        }
-      }
-    }
-    return moves;
+    return _getTigerMovesForBoard(idx, board);
+  }
+
+  List<Map<String, dynamic>> _getTigerMovesForBoard(
+    int idx,
+    List<int> state, {
+    bool enforceRepetition = true,
+  }) {
+    final moves = BaghchalRules.tigerMoves(
+      board: state,
+      adjacency: adjacency,
+      from: idx,
+    );
+
+    if (!enforceRepetition || phase != 'movement') return moves;
+
+    return moves.where((move) {
+      return !_wouldRepeatPosition(
+        state: state,
+        piece: BaghchalRules.tiger,
+        from: idx,
+        to: move['to'] as int,
+        capture: move['capture'] as int?,
+        nextTurn: 'goat',
+      );
+    }).toList();
   }
 
   // ─── Goat moves ─────────────────────────────────────────
   List<Map<String, dynamic>> getGoatMoves(int idx) {
-    final moves = <Map<String, dynamic>>[];
-    for (final n in getNeighbors(idx)) {
-      if (board[n] == 0) moves.add({'to': n});
-    }
-    return moves;
+    if (phase != 'movement') return const [];
+
+    final moves = BaghchalRules.goatMoves(
+      board: board,
+      adjacency: adjacency,
+      from: idx,
+    );
+
+    return moves.where((move) {
+      return !_wouldRepeatPosition(
+        state: board,
+        piece: BaghchalRules.goat,
+        from: idx,
+        to: move['to'] as int,
+        nextTurn: 'tiger',
+      );
+    }).toList();
   }
 
   bool anyTigerHasMoves() {
@@ -451,7 +415,6 @@ class _BaghchalScreenState extends State<BaghchalScreen> {
     for (final ti in tigerIndices) {
       final moves = getTigerMoves(ti);
       for (final m in moves) {
-        if (_isIllegalLoop(ti, ti, m['to'])) continue;
         allMoves.add({'from': ti, 'to': m['to'], 'capture': m['capture']});
       }
     }
@@ -467,8 +430,9 @@ class _BaghchalScreenState extends State<BaghchalScreen> {
 
     if (widget.difficulty == AIDifficulty.medium) {
       final captures = moves.where((m) => m['capture'] != null).toList();
-      if (captures.isNotEmpty)
+      if (captures.isNotEmpty) {
         return captures[Random().nextInt(captures.length)];
+      }
       return moves[Random().nextInt(moves.length)];
     }
 
@@ -500,63 +464,35 @@ class _BaghchalScreenState extends State<BaghchalScreen> {
   }
 
   List<Map<String, dynamic>> getTigerMovesSim(int idx, List<int> simBoard) {
-    final moves = <Map<String, dynamic>>[];
-    for (final n in adjacency[idx]) {
-      if (simBoard[n] == 0) moves.add({'to': n, 'capture': null});
-    }
-    final r = idx ~/ 5, c = idx % 5;
-    const dirs = [
-      [-1, -1],
-      [-1, 0],
-      [-1, 1],
-      [0, -1],
-      [0, 1],
-      [1, -1],
-      [1, 0],
-      [1, 1]
-    ];
-    for (final d in dirs) {
-      final nr1 = r + d[0], nc1 = c + d[1];
-      if (nr1 >= 0 && nr1 < 5 && nc1 >= 0 && nc1 < 5) {
-        final idx1 = nr1 * 5 + nc1;
-        if (simBoard[idx1] == 2 && adjacency[idx].contains(idx1)) {
-          final nr2 = r + 2 * d[0], nc2 = c + 2 * d[1];
-          if (nr2 >= 0 && nr2 < 5 && nc2 >= 0 && nc2 < 5) {
-            final idx2 = nr2 * 5 + nc2;
-            if (simBoard[idx2] == 0 && adjacency[idx1].contains(idx2)) {
-              moves.add({'to': idx2, 'capture': idx1});
-            }
-          }
-        }
-      }
-    }
-    return moves;
+    return _getTigerMovesForBoard(
+      idx,
+      simBoard,
+      enforceRepetition: false,
+    );
   }
 
   // ─── Execute moves ──────────────────────────────────────
   void executeTigerMove(int from, int to, int? capture) {
-    if (capture != null) {
-      if (board[capture] != 2 || board[to] != 0) {
-        infoMessage = 'Invalid capture';
-        setState(() {});
-        return;
-      }
-      if (!getNeighbors(from).contains(capture) ||
-          !getNeighbors(capture).contains(to)) {
-        infoMessage = 'Capture not along a line';
-        setState(() {});
-        return;
-      }
-    } else {
-      if (!getNeighbors(from).contains(to)) {
-        infoMessage = 'Not adjacent';
-        setState(() {});
-        return;
-      }
-    }
+    final legalMoves = getTigerMoves(from);
+    final isLegalMove = legalMoves.any(
+      (move) => _matchesMove(move, to, capture),
+    );
 
-    if (_isIllegalLoop(from, from, to)) {
-      infoMessage = 'Cannot move back & forth more than twice (anti‑loop)';
+    if (board[from] != BaghchalRules.tiger ||
+        board[to] != BaghchalRules.empty ||
+        !isLegalMove) {
+      final rawMoves = _getTigerMovesForBoard(
+        from,
+        board,
+        enforceRepetition: false,
+      );
+      final isRepeatOnly = rawMoves.any(
+        (move) => _matchesMove(move, to, capture),
+      );
+
+      infoMessage = isRepeatOnly
+          ? 'That move repeats a previous board position'
+          : 'Invalid tiger move';
       setState(() {});
       return;
     }
@@ -566,7 +502,6 @@ class _BaghchalScreenState extends State<BaghchalScreen> {
       board[from] = 0;
       final idx = tigerIndices.indexOf(from);
       if (idx != -1) tigerIndices[idx] = to;
-      _updatePieceLastMove(from, from, to);
       lastMoveFrom = from;
       lastMoveTo = to;
 
@@ -576,7 +511,6 @@ class _BaghchalScreenState extends State<BaghchalScreen> {
         final gi = goatIndices.indexOf(capture);
         if (gi != -1) {
           goatIndices.removeAt(gi);
-          _clearPieceHistory(capture);
         }
         GameStats.addCaptures(1);
       }
@@ -606,10 +540,12 @@ class _BaghchalScreenState extends State<BaghchalScreen> {
         } else {
           turn = 'goat';
           infoMessage = '';
+          _recordCurrentPosition();
         }
       } else {
         turn = 'goat';
         infoMessage = '';
+        _recordCurrentPosition();
       }
     });
     HapticFeedback.lightImpact();
@@ -617,8 +553,26 @@ class _BaghchalScreenState extends State<BaghchalScreen> {
   }
 
   void executeGoatMove(int from, int to) {
-    if (_isIllegalLoop(from, from, to)) {
-      infoMessage = 'Cannot move back & forth more than twice (anti‑loop)';
+    final legalMoves = getGoatMoves(from);
+    final isLegalMove = legalMoves.any(
+      (move) => _matchesMove(move, to, null),
+    );
+
+    if (board[from] != BaghchalRules.goat ||
+        board[to] != BaghchalRules.empty ||
+        !isLegalMove) {
+      final rawMoves = BaghchalRules.goatMoves(
+        board: board,
+        adjacency: adjacency,
+        from: from,
+      );
+      final isRepeatOnly = rawMoves.any(
+        (move) => _matchesMove(move, to, null),
+      );
+
+      infoMessage = isRepeatOnly
+          ? 'That move repeats a previous board position'
+          : 'Invalid goat move';
       setState(() {});
       return;
     }
@@ -628,7 +582,6 @@ class _BaghchalScreenState extends State<BaghchalScreen> {
       board[from] = 0;
       final idx = goatIndices.indexOf(from);
       if (idx != -1) goatIndices[idx] = to;
-      _updatePieceLastMove(from, from, to);
       lastMoveFrom = from;
       lastMoveTo = to;
 
@@ -636,8 +589,16 @@ class _BaghchalScreenState extends State<BaghchalScreen> {
       selectedTiger = null;
       selectedGoatFromReserve = false;
       showHints = false;
-      turn = 'tiger';
-      infoMessage = '';
+      if (!anyTigerHasMoves()) {
+        turn = 'gameover_goat';
+        infoMessage = '🏆 Goat wins! All tigers trapped';
+        GameStats.incrementGoatWins();
+        GameStats.incrementTotalGames();
+      } else {
+        turn = 'tiger';
+        infoMessage = '';
+        _recordCurrentPosition();
+      }
     });
     HapticFeedback.lightImpact();
     SoundManager.playTap();
@@ -665,6 +626,7 @@ class _BaghchalScreenState extends State<BaghchalScreen> {
         } else {
           turn = 'tiger';
           infoMessage = '';
+          _recordCurrentPosition();
         }
       } else {
         turn = 'tiger';
@@ -759,7 +721,7 @@ class _BaghchalScreenState extends State<BaghchalScreen> {
       showHints = false;
       aiThinking = false;
       infoMessage = 'Place goats · Tap reserve, then board';
-      pieceLastMove.clear();
+      positionHistory.clear();
       lastMoveFrom = null;
       lastMoveTo = null;
       final corners = [0, 4, 20, 24];
@@ -805,9 +767,9 @@ class _BaghchalScreenState extends State<BaghchalScreen> {
               _ruleText(
                   '• Cannot jump over two goats, a tiger, or land off‑line.'),
               const SizedBox(height: 10),
-              _ruleText('Anti‑Loop Rule'),
+              _ruleText('Repetition Rule'),
               _ruleText(
-                  '• A piece cannot move back and forth on the same edge more than twice consecutively.'),
+                  '• After all goats are placed, a move cannot recreate a previous board position.'),
               const SizedBox(height: 10),
               _ruleText('Winning'),
               _ruleText('• Tiger wins after capturing 5 goats.'),
@@ -909,7 +871,6 @@ class _BaghchalScreenState extends State<BaghchalScreen> {
   @override
   void initState() {
     super.initState();
-    buildAdjacency();
     resetGame();
   }
 
@@ -1415,12 +1376,6 @@ class _BaghchalScreenState extends State<BaghchalScreen> {
       final moves = getGoatMoves(selectedGoat!);
       for (final m in moves) {
         if (m['to'] == idx) {
-          if (_isIllegalLoop(selectedGoat!, selectedGoat!, idx)) {
-            infoMessage =
-                'Cannot move back & forth more than twice (anti‑loop)';
-            setState(() {});
-            return;
-          }
           executeGoatMove(selectedGoat!, idx);
           return;
         }
@@ -1439,12 +1394,6 @@ class _BaghchalScreenState extends State<BaghchalScreen> {
       final moves = getTigerMoves(selectedTiger!);
       for (final m in moves) {
         if (m['to'] == idx) {
-          if (_isIllegalLoop(selectedTiger!, selectedTiger!, idx)) {
-            infoMessage =
-                'Cannot move back & forth more than twice (anti‑loop)';
-            setState(() {});
-            return;
-          }
           executeTigerMove(selectedTiger!, idx, m['capture']);
           return;
         }
@@ -1570,34 +1519,8 @@ class BoardPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
 
-    const lineSegments = [
-      [0, 1, 2, 3, 4],
-      [5, 6, 7, 8, 9],
-      [10, 11, 12, 13, 14],
-      [15, 16, 17, 18, 19],
-      [20, 21, 22, 23, 24],
-      [0, 5, 10, 15, 20],
-      [1, 6, 11, 16, 21],
-      [2, 7, 12, 17, 22],
-      [3, 8, 13, 18, 23],
-      [4, 9, 14, 19, 24],
-      [0, 6, 12, 18, 24],
-      [4, 8, 12, 16, 20],
-      [2, 6, 10],
-      [2, 8, 14],
-      [10, 16, 22],
-      [14, 18, 22],
-      [0, 12],
-      [4, 12],
-      [20, 12],
-      [24, 12],
-      [2, 12],
-      [12, 22],
-      [22, 10],
-      [10, 2],
-    ];
     final drawn = <String>{};
-    for (final seg in lineSegments) {
+    for (final seg in BaghchalRules.lineSegments) {
       for (int i = 0; i < seg.length - 1; i++) {
         final a = seg[i], b = seg[i + 1];
         final key = '${min(a, b)}-${max(a, b)}';

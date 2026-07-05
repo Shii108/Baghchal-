@@ -10,9 +10,6 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # UI icons
-  cupertino_icons: ^1.0.8
-
   # Statistics storage
   shared_preferences: ^2.3.0
 
