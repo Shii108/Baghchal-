@@ -1,5 +1,7 @@
 import 'dart:math';
+import 'dart:ui' as ui;
 
+import 'package:audioplayers/audioplayers.dart';
 import 'package:baghchal_app/baghchal_rules.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,9 +12,32 @@ void main() => runApp(const BaghchalApp());
 // ─── Sound Manager ─────────────────────────────────────────
 class SoundManager {
   static bool _muted = false;
+  static final AudioPlayer _player = AudioPlayer();
+
   static void toggleMute() => _muted = !_muted;
   static bool isMuted() => _muted;
-  static void playTap() {} // placeholder – no audioplayers
+  static void playTap() {}
+
+  static Future<void> _play(String asset) async {
+    if (_muted) return;
+    await _player.stop();
+    await _player.play(AssetSource(asset));
+  }
+
+  static void playMove() => _play('sounds/move.mp3');
+  static void playTiger() => _play('sounds/tiger.mp3');
+  static void playGoat() => _play('sounds/goat.mp3');
+  static void playCelebration() => _play('sounds/celebration.mp3');
+
+  static void playTigerWin() {
+    playTiger();
+    Future.delayed(const Duration(milliseconds: 450), playCelebration);
+  }
+
+  static void playGoatWin() {
+    playGoat();
+    Future.delayed(const Duration(milliseconds: 450), playCelebration);
+  }
 }
 
 // ─── Statistics Manager ──────────────────────────────────
@@ -96,6 +121,7 @@ class ThemeColors {
   final Color boardBg;
   final Color lineColor;
   final Color dotColor;
+  final Color boardFrame;
   final Color boardShadow;
   final Color tigerColor;
   final Color goatColor;
@@ -107,6 +133,7 @@ class ThemeColors {
     required this.boardBg,
     required this.lineColor,
     required this.dotColor,
+    required this.boardFrame,
     required this.boardShadow,
     required this.tigerColor,
     required this.goatColor,
@@ -120,6 +147,7 @@ class ThemeColors {
       boardBg: Color(0xFF2d5a27),
       lineColor: Color(0xFFdcc29e),
       dotColor: Color(0xFFdcc29e),
+      boardFrame: Color(0xFFb3926e),
       boardShadow: Color(0xFF8a7a5a),
       tigerColor: Color(0xFFE67E22),
       goatColor: Color(0xFFFFFFFF),
@@ -131,6 +159,7 @@ class ThemeColors {
       boardBg: Color(0xFF1a4a6b),
       lineColor: Color(0xFFb0d4f1),
       dotColor: Color(0xFFb0d4f1),
+      boardFrame: Color(0xFF4a7a9c),
       boardShadow: Color(0xFF2a5a7a),
       tigerColor: Color(0xFFE67E22),
       goatColor: Color(0xFFFFFFFF),
@@ -142,6 +171,7 @@ class ThemeColors {
       boardBg: Color(0xFF6b4c3b),
       lineColor: Color(0xFFe8d5b5),
       dotColor: Color(0xFFe8d5b5),
+      boardFrame: Color(0xFF8a6b4a),
       boardShadow: Color(0xFF5a3b2a),
       tigerColor: Color(0xFFE67E22),
       goatColor: Color(0xFFFFFFFF),
@@ -153,6 +183,7 @@ class ThemeColors {
       boardBg: Color(0xFF3a2a5a),
       lineColor: Color(0xFFc9b8e8),
       dotColor: Color(0xFFc9b8e8),
+      boardFrame: Color(0xFF6a4a8a),
       boardShadow: Color(0xFF2a1a4a),
       tigerColor: Color(0xFFE67E22),
       goatColor: Color(0xFFFFFFFF),
@@ -164,6 +195,7 @@ class ThemeColors {
       boardBg: Color(0xFF1a1a1a),
       lineColor: Color(0xFF888888),
       dotColor: Color(0xFF888888),
+      boardFrame: Color(0xFF444444),
       boardShadow: Color(0xFF0a0a0a),
       tigerColor: Color(0xFFE67E22),
       goatColor: Color(0xFFCCCCCC),
@@ -175,6 +207,7 @@ class ThemeColors {
       boardBg: Color(0xFFb58a5a),
       lineColor: Color(0xFF5a3a1a),
       dotColor: Color(0xFF5a3a1a),
+      boardFrame: Color(0xFF8a6a3a),
       boardShadow: Color(0xFF7a5a2a),
       tigerColor: Color(0xFFE67E22),
       goatColor: Color(0xFFFFFFFF),
@@ -186,6 +219,7 @@ class ThemeColors {
       boardBg: Color(0xFF4a4a4a),
       lineColor: Color(0xFFaaaaaa),
       dotColor: Color(0xFFaaaaaa),
+      boardFrame: Color(0xFF2a2a2a),
       boardShadow: Color(0xFF1a1a1a),
       tigerColor: Color(0xFFE67E22),
       goatColor: Color(0xFFCCCCCC),
@@ -197,6 +231,7 @@ class ThemeColors {
       boardBg: Color(0xFFc9a84c),
       lineColor: Color(0xFF8a6a2a),
       dotColor: Color(0xFF8a6a2a),
+      boardFrame: Color(0xFFa8863a),
       boardShadow: Color(0xFF8a6a2a),
       tigerColor: Color(0xFFE67E22),
       goatColor: Color(0xFFFFFFFF),
@@ -299,6 +334,8 @@ class _BaghchalScreenState extends State<BaghchalScreen> {
   bool selectedGoatFromReserve = false;
   List<int> tigerIndices = [];
   List<int> goatIndices = [];
+  ui.Image? tigerImage;
+  ui.Image? goatImage;
   bool aiEnabled = false;
   bool aiThinking = false;
   bool showHints = false;
@@ -308,103 +345,81 @@ class _BaghchalScreenState extends State<BaghchalScreen> {
   int? lastMoveFrom;
   int? lastMoveTo;
 
-  // ─── Repetition tracking ─────────────────────────────────
-  final Set<String> positionHistory = <String>{};
+  // ─── Anti‑loop tracking ──────────────────────────────────
+  Map<int, Map<String, int>> pieceLastMove = {};
+
+  void _updatePieceLastMove(int pieceIndex, int from, int to) {
+    final previous = pieceLastMove[pieceIndex];
+    final nextMove =
+        previous != null && previous['from'] == to && previous['to'] == from
+            ? {
+                'from': from,
+                'to': to,
+                'count': (previous['count'] ?? 0) + 1,
+              }
+            : {'from': from, 'to': to, 'count': 1};
+
+    pieceLastMove.remove(pieceIndex);
+    pieceLastMove[to] = nextMove;
+  }
+
+  bool _isIllegalLoop(int pieceIndex, int from, int to) {
+    final previous = pieceLastMove[pieceIndex];
+    if (previous == null) return false;
+    if (previous['from'] == to && previous['to'] == from) {
+      final count = (previous['count'] ?? 0) + 1;
+      if (count >= 3) return true;
+    }
+    return false;
+  }
+
+  void _clearPieceHistory(int pieceIndex) {
+    pieceLastMove.remove(pieceIndex);
+  }
 
   // ─── Adjacency ──────────────────────────────────────────
-  final List<List<int>> adjacency = BaghchalRules.buildAdjacency();
+  final List<List<int>> adjacency = List.generate(boardSize, (_) => []);
 
-  String _positionKey(List<int> state, String nextTurn, String nextPhase) {
-    return '$nextPhase|$nextTurn|${state.join(',')}';
-  }
-
-  bool _wouldRepeatPosition({
-    required List<int> state,
-    required int piece,
-    required int from,
-    required int to,
-    required String nextTurn,
-    int? capture,
-  }) {
-    if (phase != 'movement') return false;
-
-    final nextBoard = List<int>.from(state);
-    nextBoard[from] = BaghchalRules.empty;
-    nextBoard[to] = piece;
-    if (capture != null) {
-      nextBoard[capture] = BaghchalRules.empty;
+  void buildAdjacency() {
+    final edges = <String>{};
+    for (final seg in BaghchalRules.lineSegments) {
+      for (int i = 0; i < seg.length - 1; i++) {
+        final a = seg[i], b = seg[i + 1];
+        final key = '${min(a, b)}-${max(a, b)}';
+        if (!edges.contains(key)) {
+          edges.add(key);
+          adjacency[a].add(b);
+          adjacency[b].add(a);
+        }
+      }
     }
-
-    return positionHistory.contains(
-      _positionKey(nextBoard, nextTurn, 'movement'),
-    );
   }
 
-  void _recordCurrentPosition() {
-    if (phase != 'movement') return;
-    if (turn != 'goat' && turn != 'tiger') return;
-
-    positionHistory.add(_positionKey(board, turn, phase));
-  }
-
-  bool _matchesMove(Map<String, dynamic> move, int to, int? capture) {
-    return move['to'] == to && move['capture'] == capture;
-  }
+  List<int> getNeighbors(int idx) => adjacency[idx];
 
   // ─── Tiger moves ────────────────────────────────────────
   List<Map<String, dynamic>> getTigerMoves(int idx) {
-    return _getTigerMovesForBoard(idx, board);
-  }
-
-  List<Map<String, dynamic>> _getTigerMovesForBoard(
-    int idx,
-    List<int> state, {
-    bool enforceRepetition = true,
-  }) {
-    final moves = BaghchalRules.tigerMoves(
-      board: state,
-      adjacency: adjacency,
-      from: idx,
-    );
-
-    if (!enforceRepetition || phase != 'movement') return moves;
-
-    return moves.where((move) {
-      return !_wouldRepeatPosition(
-        state: state,
-        piece: BaghchalRules.tiger,
-        from: idx,
-        to: move['to'] as int,
-        capture: move['capture'] as int?,
-        nextTurn: 'goat',
-      );
-    }).toList();
-  }
-
-  // ─── Goat moves ─────────────────────────────────────────
-  List<Map<String, dynamic>> getGoatMoves(int idx) {
-    if (phase != 'movement') return const [];
-
-    final moves = BaghchalRules.goatMoves(
+    return BaghchalRules.tigerMoves(
       board: board,
       adjacency: adjacency,
       from: idx,
     );
+  }
 
-    return moves.where((move) {
-      return !_wouldRepeatPosition(
-        state: board,
-        piece: BaghchalRules.goat,
-        from: idx,
-        to: move['to'] as int,
-        nextTurn: 'tiger',
-      );
-    }).toList();
+  // ─── Goat moves ─────────────────────────────────────────
+  List<Map<String, dynamic>> getGoatMoves(int idx) {
+    return BaghchalRules.goatMoves(
+      board: board,
+      adjacency: adjacency,
+      from: idx,
+    );
   }
 
   bool anyTigerHasMoves() {
     for (final ti in tigerIndices) {
-      if (getTigerMoves(ti).isNotEmpty) return true;
+      for (final move in getTigerMoves(ti)) {
+        if (!_isIllegalLoop(ti, ti, move['to'] as int)) return true;
+      }
     }
     return false;
   }
@@ -415,6 +430,7 @@ class _BaghchalScreenState extends State<BaghchalScreen> {
     for (final ti in tigerIndices) {
       final moves = getTigerMoves(ti);
       for (final m in moves) {
+        if (_isIllegalLoop(ti, ti, m['to'])) continue;
         allMoves.add({'from': ti, 'to': m['to'], 'capture': m['capture']});
       }
     }
@@ -464,44 +480,59 @@ class _BaghchalScreenState extends State<BaghchalScreen> {
   }
 
   List<Map<String, dynamic>> getTigerMovesSim(int idx, List<int> simBoard) {
-    return _getTigerMovesForBoard(
-      idx,
-      simBoard,
-      enforceRepetition: false,
+    return BaghchalRules.tigerMoves(
+      board: simBoard,
+      adjacency: adjacency,
+      from: idx,
     );
   }
 
   // ─── Execute moves ──────────────────────────────────────
   void executeTigerMove(int from, int to, int? capture) {
-    final legalMoves = getTigerMoves(from);
-    final isLegalMove = legalMoves.any(
-      (move) => _matchesMove(move, to, capture),
+    final isLegalMove = getTigerMoves(from).any(
+      (move) => move['to'] == to && move['capture'] == capture,
     );
-
-    if (board[from] != BaghchalRules.tiger ||
-        board[to] != BaghchalRules.empty ||
-        !isLegalMove) {
-      final rawMoves = _getTigerMovesForBoard(
-        from,
-        board,
-        enforceRepetition: false,
-      );
-      final isRepeatOnly = rawMoves.any(
-        (move) => _matchesMove(move, to, capture),
-      );
-
-      infoMessage = isRepeatOnly
-          ? 'That move repeats a previous board position'
-          : 'Invalid tiger move';
+    if (!isLegalMove) {
+      infoMessage = 'Invalid tiger move';
       setState(() {});
       return;
     }
+
+    if (capture != null) {
+      if (board[capture] != 2 || board[to] != 0) {
+        infoMessage = 'Invalid capture';
+        setState(() {});
+        return;
+      }
+      if (!getNeighbors(from).contains(capture) ||
+          !getNeighbors(capture).contains(to)) {
+        infoMessage = 'Capture not along a line';
+        setState(() {});
+        return;
+      }
+    } else {
+      if (!getNeighbors(from).contains(to)) {
+        infoMessage = 'Not adjacent';
+        setState(() {});
+        return;
+      }
+    }
+
+    if (_isIllegalLoop(from, from, to)) {
+      infoMessage = 'Cannot move back & forth more than twice (anti‑loop)';
+      setState(() {});
+      return;
+    }
+
+    bool tigerWon = false;
+    bool goatWon = false;
 
     setState(() {
       board[to] = 1;
       board[from] = 0;
       final idx = tigerIndices.indexOf(from);
       if (idx != -1) tigerIndices[idx] = to;
+      _updatePieceLastMove(from, from, to);
       lastMoveFrom = from;
       lastMoveTo = to;
 
@@ -511,6 +542,7 @@ class _BaghchalScreenState extends State<BaghchalScreen> {
         final gi = goatIndices.indexOf(capture);
         if (gi != -1) {
           goatIndices.removeAt(gi);
+          _clearPieceHistory(capture);
         }
         GameStats.addCaptures(1);
       }
@@ -523,11 +555,13 @@ class _BaghchalScreenState extends State<BaghchalScreen> {
       if (goatsCaptured >= 5) {
         turn = 'gameover_tiger';
         infoMessage = '🏆 Tiger wins! 5 goats eaten';
+        tigerWon = true;
         GameStats.incrementTigerWins();
         GameStats.incrementTotalGames();
-      } else if (phase == 'movement' && !anyTigerHasMoves()) {
+      } else if (!anyTigerHasMoves()) {
         turn = 'gameover_goat';
         infoMessage = '🏆 Goat wins! All tigers trapped';
+        goatWon = true;
         GameStats.incrementGoatWins();
         GameStats.incrementTotalGames();
       } else if (phase == 'placement' && goatsPlaced == maxGoats) {
@@ -535,53 +569,52 @@ class _BaghchalScreenState extends State<BaghchalScreen> {
         if (!anyTigerHasMoves()) {
           turn = 'gameover_goat';
           infoMessage = '🏆 Goat wins! All tigers trapped';
+          goatWon = true;
           GameStats.incrementGoatWins();
           GameStats.incrementTotalGames();
         } else {
           turn = 'goat';
           infoMessage = '';
-          _recordCurrentPosition();
         }
       } else {
         turn = 'goat';
         infoMessage = '';
-        _recordCurrentPosition();
       }
     });
     HapticFeedback.lightImpact();
-    SoundManager.playTap();
+    if (tigerWon) {
+      SoundManager.playTigerWin();
+    } else if (goatWon) {
+      SoundManager.playGoatWin();
+    } else if (capture != null) {
+      SoundManager.playTiger();
+    } else {
+      SoundManager.playMove();
+    }
   }
 
   void executeGoatMove(int from, int to) {
-    final legalMoves = getGoatMoves(from);
-    final isLegalMove = legalMoves.any(
-      (move) => _matchesMove(move, to, null),
-    );
-
-    if (board[from] != BaghchalRules.goat ||
-        board[to] != BaghchalRules.empty ||
-        !isLegalMove) {
-      final rawMoves = BaghchalRules.goatMoves(
-        board: board,
-        adjacency: adjacency,
-        from: from,
-      );
-      final isRepeatOnly = rawMoves.any(
-        (move) => _matchesMove(move, to, null),
-      );
-
-      infoMessage = isRepeatOnly
-          ? 'That move repeats a previous board position'
-          : 'Invalid goat move';
+    final isLegalMove = getGoatMoves(from).any((move) => move['to'] == to);
+    if (!isLegalMove) {
+      infoMessage = 'Invalid goat move';
       setState(() {});
       return;
     }
+
+    if (_isIllegalLoop(from, from, to)) {
+      infoMessage = 'Cannot move back & forth more than twice (anti‑loop)';
+      setState(() {});
+      return;
+    }
+
+    bool goatWon = false;
 
     setState(() {
       board[to] = 2;
       board[from] = 0;
       final idx = goatIndices.indexOf(from);
       if (idx != -1) goatIndices[idx] = to;
+      _updatePieceLastMove(from, from, to);
       lastMoveFrom = from;
       lastMoveTo = to;
 
@@ -592,21 +625,27 @@ class _BaghchalScreenState extends State<BaghchalScreen> {
       if (!anyTigerHasMoves()) {
         turn = 'gameover_goat';
         infoMessage = '🏆 Goat wins! All tigers trapped';
+        goatWon = true;
         GameStats.incrementGoatWins();
         GameStats.incrementTotalGames();
       } else {
         turn = 'tiger';
         infoMessage = '';
-        _recordCurrentPosition();
       }
     });
     HapticFeedback.lightImpact();
-    SoundManager.playTap();
+    if (goatWon) {
+      SoundManager.playGoatWin();
+    } else {
+      SoundManager.playMove();
+    }
     _scheduleAIMoveIfNeeded();
   }
 
   void placeGoat(int idx) {
     if (turn != 'goat' || goatsPlaced >= maxGoats || board[idx] != 0) return;
+    bool goatWon = false;
+
     setState(() {
       board[idx] = 2;
       goatIndices.add(idx);
@@ -616,25 +655,27 @@ class _BaghchalScreenState extends State<BaghchalScreen> {
       lastMoveFrom = null;
       lastMoveTo = idx;
 
-      if (goatsPlaced == maxGoats) {
+      if (!anyTigerHasMoves()) {
+        turn = 'gameover_goat';
+        infoMessage = '🏆 Goat wins! All tigers trapped';
+        goatWon = true;
+        GameStats.incrementGoatWins();
+        GameStats.incrementTotalGames();
+      } else if (goatsPlaced == maxGoats) {
         phase = 'movement';
-        if (!anyTigerHasMoves()) {
-          turn = 'gameover_goat';
-          infoMessage = '🏆 Goat wins! All tigers trapped';
-          GameStats.incrementGoatWins();
-          GameStats.incrementTotalGames();
-        } else {
-          turn = 'tiger';
-          infoMessage = '';
-          _recordCurrentPosition();
-        }
+        turn = 'tiger';
+        infoMessage = '';
       } else {
         turn = 'tiger';
         infoMessage = '';
       }
     });
     HapticFeedback.lightImpact();
-    SoundManager.playTap();
+    if (goatWon) {
+      SoundManager.playGoatWin();
+    } else {
+      SoundManager.playMove();
+    }
     _scheduleAIMoveIfNeeded();
   }
 
@@ -660,19 +701,13 @@ class _BaghchalScreenState extends State<BaghchalScreen> {
 
     final allMoves = _selectAIMoves();
     if (allMoves.isEmpty) {
-      if (phase == 'placement') {
-        setState(() {
-          turn = 'goat';
-          infoMessage = 'No tiger moves, switching to goat';
-        });
-      } else {
-        setState(() {
-          turn = 'gameover_goat';
-          infoMessage = 'All tigers trapped! Goats win!';
-          GameStats.incrementGoatWins();
-          GameStats.incrementTotalGames();
-        });
-      }
+      setState(() {
+        turn = 'gameover_goat';
+        infoMessage = '🏆 Goat wins! All tigers trapped';
+        GameStats.incrementGoatWins();
+        GameStats.incrementTotalGames();
+      });
+      SoundManager.playGoatWin();
       return;
     }
 
@@ -721,7 +756,7 @@ class _BaghchalScreenState extends State<BaghchalScreen> {
       showHints = false;
       aiThinking = false;
       infoMessage = 'Place goats · Tap reserve, then board';
-      positionHistory.clear();
+      pieceLastMove.clear();
       lastMoveFrom = null;
       lastMoveTo = null;
       final corners = [0, 4, 20, 24];
@@ -767,9 +802,9 @@ class _BaghchalScreenState extends State<BaghchalScreen> {
               _ruleText(
                   '• Cannot jump over two goats, a tiger, or land off‑line.'),
               const SizedBox(height: 10),
-              _ruleText('Repetition Rule'),
+              _ruleText('Anti‑Loop Rule'),
               _ruleText(
-                  '• After all goats are placed, a move cannot recreate a previous board position.'),
+                  '• A piece cannot move back and forth on the same edge more than twice consecutively.'),
               const SizedBox(height: 10),
               _ruleText('Winning'),
               _ruleText('• Tiger wins after capturing 5 goats.'),
@@ -871,7 +906,26 @@ class _BaghchalScreenState extends State<BaghchalScreen> {
   @override
   void initState() {
     super.initState();
+    buildAdjacency();
     resetGame();
+    _loadPieceImages();
+  }
+
+  Future<void> _loadPieceImages() async {
+    final tiger = await _loadUiImage('assets/icon/tiger.jpg');
+    final goat = await _loadUiImage('assets/icon/goat.jpeg');
+    if (!mounted) return;
+    setState(() {
+      tigerImage = tiger;
+      goatImage = goat;
+    });
+  }
+
+  Future<ui.Image> _loadUiImage(String assetPath) async {
+    final data = await rootBundle.load(assetPath);
+    final codec = await ui.instantiateImageCodec(data.buffer.asUint8List());
+    final frame = await codec.getNextFrame();
+    return frame.image;
   }
 
   // ─── Build ──────────────────────────────────────────────
@@ -1033,13 +1087,14 @@ class _BaghchalScreenState extends State<BaghchalScreen> {
                               ),
                               child: Center(
                                 child: isAvailable
-                                    ? (selectedGoatFromReserve
-                                        ? Icon(Icons.circle,
-                                            size: 18,
-                                            color: themeColors.goatBorder)
-                                        : Icon(Icons.circle,
-                                            size: 18,
-                                            color: themeColors.goatBorder))
+                                    ? ClipOval(
+                                        child: Image.asset(
+                                          'assets/icon/goat.jpeg',
+                                          width: 32,
+                                          height: 32,
+                                          fit: BoxFit.cover,
+                                        ),
+                                      )
                                     : const Icon(Icons.circle,
                                         size: 18, color: Color(0xFF1a1a1a)),
                               ),
@@ -1338,6 +1393,8 @@ class _BaghchalScreenState extends State<BaghchalScreen> {
               getTigerMoves: getTigerMoves,
               getGoatMoves: getGoatMoves,
               themeColors: themeColors,
+              tigerImage: tigerImage,
+              goatImage: goatImage,
             ),
             size: Size(boardSize, boardSize),
           ),
@@ -1376,6 +1433,12 @@ class _BaghchalScreenState extends State<BaghchalScreen> {
       final moves = getGoatMoves(selectedGoat!);
       for (final m in moves) {
         if (m['to'] == idx) {
+          if (_isIllegalLoop(selectedGoat!, selectedGoat!, idx)) {
+            infoMessage =
+                'Cannot move back & forth more than twice (anti‑loop)';
+            setState(() {});
+            return;
+          }
           executeGoatMove(selectedGoat!, idx);
           return;
         }
@@ -1394,6 +1457,12 @@ class _BaghchalScreenState extends State<BaghchalScreen> {
       final moves = getTigerMoves(selectedTiger!);
       for (final m in moves) {
         if (m['to'] == idx) {
+          if (_isIllegalLoop(selectedTiger!, selectedTiger!, idx)) {
+            infoMessage =
+                'Cannot move back & forth more than twice (anti‑loop)';
+            setState(() {});
+            return;
+          }
           executeTigerMove(selectedTiger!, idx, m['capture']);
           return;
         }
@@ -1477,6 +1546,8 @@ class BoardPainter extends CustomPainter {
   final List<Map<String, dynamic>> Function(int) getTigerMoves;
   final List<Map<String, dynamic>> Function(int) getGoatMoves;
   final ThemeColors themeColors;
+  final ui.Image? tigerImage;
+  final ui.Image? goatImage;
 
   const BoardPainter({
     required this.board,
@@ -1494,6 +1565,8 @@ class BoardPainter extends CustomPainter {
     required this.getTigerMoves,
     required this.getGoatMoves,
     required this.themeColors,
+    required this.tigerImage,
+    required this.goatImage,
   });
 
   @override
@@ -1519,8 +1592,34 @@ class BoardPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
 
+    const lineSegments = [
+      [0, 1, 2, 3, 4],
+      [5, 6, 7, 8, 9],
+      [10, 11, 12, 13, 14],
+      [15, 16, 17, 18, 19],
+      [20, 21, 22, 23, 24],
+      [0, 5, 10, 15, 20],
+      [1, 6, 11, 16, 21],
+      [2, 7, 12, 17, 22],
+      [3, 8, 13, 18, 23],
+      [4, 9, 14, 19, 24],
+      [0, 6, 12, 18, 24],
+      [4, 8, 12, 16, 20],
+      [2, 6, 10],
+      [2, 8, 14],
+      [10, 16, 22],
+      [14, 18, 22],
+      [0, 12],
+      [4, 12],
+      [20, 12],
+      [24, 12],
+      [2, 12],
+      [12, 22],
+      [22, 10],
+      [10, 2],
+    ];
     final drawn = <String>{};
-    for (final seg in BaghchalRules.lineSegments) {
+    for (final seg in lineSegments) {
       for (int i = 0; i < seg.length - 1; i++) {
         final a = seg[i], b = seg[i + 1];
         final key = '${min(a, b)}-${max(a, b)}';
@@ -1619,22 +1718,34 @@ class BoardPainter extends CustomPainter {
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
       canvas.drawCircle(pos + const Offset(0, 4), r, shadowPaint);
 
-      // Base circle – tiger: plain orange, goat: white
-      final fillColor =
-          isTiger ? themeColors.tigerColor : themeColors.goatColor;
       final strokeColor =
           isTiger ? themeColors.tigerBorder : themeColors.goatBorder;
-      final Paint piecePaint = Paint()
-        ..color = fillColor
-        ..style = PaintingStyle.fill;
       final Paint strokePaint = Paint()
         ..color = strokeColor
         ..strokeWidth = 3
         ..style = PaintingStyle.stroke;
-      canvas.drawCircle(pos, r, piecePaint);
-      canvas.drawCircle(pos, r, strokePaint);
+      final image = isTiger ? tigerImage : goatImage;
+      if (image != null) {
+        final imageRect = Rect.fromCircle(center: pos, radius: r);
+        final imageSize = Size(
+          image.width.toDouble(),
+          image.height.toDouble(),
+        );
+        final sourceRect = _coverSourceRect(imageSize);
 
-      // No stripes – removed as requested.
+        canvas.save();
+        canvas.clipPath(Path()..addOval(imageRect));
+        canvas.drawImageRect(image, sourceRect, imageRect, Paint());
+        canvas.restore();
+      } else {
+        final fillColor =
+            isTiger ? themeColors.tigerColor : themeColors.goatColor;
+        final Paint piecePaint = Paint()
+          ..color = fillColor
+          ..style = PaintingStyle.fill;
+        canvas.drawCircle(pos, r, piecePaint);
+      }
+      canvas.drawCircle(pos, r, strokePaint);
 
       // Selection glow
       if (isTiger && selectedTiger == i && !aiEnabled) {
@@ -1656,4 +1767,19 @@ class BoardPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(BoardPainter oldDelegate) => true;
+
+  Rect _coverSourceRect(Size imageSize) {
+    final imageAspect = imageSize.width / imageSize.height;
+    const targetAspect = 1.0;
+
+    if (imageAspect > targetAspect) {
+      final width = imageSize.height * targetAspect;
+      final left = (imageSize.width - width) / 2;
+      return Rect.fromLTWH(left, 0, width, imageSize.height);
+    }
+
+    final height = imageSize.width / targetAspect;
+    final top = (imageSize.height - height) / 2;
+    return Rect.fromLTWH(0, top, imageSize.width, height);
+  }
 }

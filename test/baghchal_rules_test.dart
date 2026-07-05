@@ -70,4 +70,28 @@ void main() {
       ),
     );
   });
+
+  test('all tigers are trapped in late placement position', () {
+    final board = List<int>.filled(
+      BaghchalRules.boardSize,
+      BaghchalRules.goat,
+    );
+    board[1] = BaghchalRules.empty;
+    board[5] = BaghchalRules.empty;
+    const tigers = [13, 17, 18, 19];
+    for (final tiger in tigers) {
+      board[tiger] = BaghchalRules.tiger;
+    }
+
+    for (final tiger in tigers) {
+      expect(
+        BaghchalRules.tigerMoves(
+          board: board,
+          adjacency: adjacency,
+          from: tiger,
+        ),
+        isEmpty,
+      );
+    }
+  });
 }
