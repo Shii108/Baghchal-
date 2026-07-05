@@ -37,6 +37,34 @@ void main() {
     expect(move['capture'], 1);
   });
 
+  test('hard tiger AI takes a safe capture over a quiet move', () {
+    final board = List<int>.filled(
+      BaghchalRules.boardSize,
+      BaghchalRules.empty,
+    );
+    const tigers = [0, 4, 20, 24];
+    for (final tiger in tigers) {
+      board[tiger] = BaghchalRules.tiger;
+    }
+    board[1] = BaghchalRules.goat;
+
+    final move = BaghchalAi.chooseHardTigerMove(
+      board: board,
+      adjacency: adjacency,
+      tigerIndices: tigers,
+      goatIndices: const [1],
+      phase: 'placement',
+      goatsPlaced: 1,
+      goatsCaptured: 0,
+      searchDepth: 2,
+    );
+
+    expect(move, isNotNull);
+    expect(move!['from'], 0);
+    expect(move['to'], 2);
+    expect(move['capture'], 1);
+  });
+
   test('hard tiger AI avoids an immediate goat trapping reply', () {
     final board = List<int>.filled(
       BaghchalRules.boardSize,
