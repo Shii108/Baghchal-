@@ -8,7 +8,12 @@ void main() {
   ) async {
     await tester.pumpWidget(const BaghchalApp());
 
-    expect(find.byType(CustomPaint), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget is CustomPaint && widget.painter is BoardPainter,
+      ),
+      findsOneWidget,
+    );
     expect(find.text('Bagh'), findsOneWidget);
     expect(find.text('chal'), findsOneWidget);
     expect(find.textContaining('PLACEMENT'), findsOneWidget);
