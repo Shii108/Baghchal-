@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:math';
 
 import 'package:baghchal_app/baghchal_rules.dart';
@@ -13,16 +12,7 @@ class SoundManager {
   static bool _muted = false;
   static void toggleMute() => _muted = !_muted;
   static bool isMuted() => _muted;
-
-  static void playTap() {
-    if (_muted) return;
-    unawaited(SystemSound.play(SystemSoundType.click));
-  }
-
-  static void playCapture() {
-    if (_muted) return;
-    unawaited(SystemSound.play(SystemSoundType.alert));
-  }
+  static void playTap() {} // placeholder – no audioplayers
 }
 
 // ─── Statistics Manager ──────────────────────────────────
@@ -559,11 +549,7 @@ class _BaghchalScreenState extends State<BaghchalScreen> {
       }
     });
     HapticFeedback.lightImpact();
-    if (capture == null) {
-      SoundManager.playTap();
-    } else {
-      SoundManager.playCapture();
-    }
+    SoundManager.playTap();
   }
 
   void executeGoatMove(int from, int to) {
