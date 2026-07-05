@@ -878,7 +878,7 @@ class _BaghchalScreenState extends State<BaghchalScreen> {
 
   Widget _buildWinOverlay() {
     final isTigerWin = turn == 'gameover_tiger';
-    final message = isTigerWin ? '🐅 Tiger Wins!' : '🐐 Goat Wins!';
+    final message = isTigerWin ? 'Tiger Wins!' : 'Goat Wins!';
     return Container(
       color: Colors.black.withOpacity(0.6),
       child: Center(
