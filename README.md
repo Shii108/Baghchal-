@@ -1,16 +1,28 @@
-# baghchal_app
+# Baghchal
 
-A new Flutter project.
+A Flutter implementation of Bagh Chal, the traditional Tigers and Goats
+strategy game from Nepal.
 
-## Getting Started
+## Current Rules
 
-This project is a starting point for a Flutter application.
+- 4 tigers start on the board corners.
+- 20 goats are placed one at a time; goats cannot move until all are placed.
+- Tigers can move or capture during both phases.
+- Pieces move only along drawn adjacent board lines.
+- Tigers capture by jumping over exactly one adjacent goat to the empty point
+  immediately beyond it on the same line.
+- Tigers win after capturing 5 goats.
+- Goats win when all tigers have no legal moves.
+- After all goats are placed, moves that recreate a previous board position are
+  rejected to prevent loops.
 
-A few resources to get you started if this is your first Flutter project:
+## Development
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+```sh
+flutter pub get
+flutter test
+flutter run
+```
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+The core board graph and move generation live in `lib/baghchal_rules.dart` and
+are covered by focused tests in `test/baghchal_rules_test.dart`.

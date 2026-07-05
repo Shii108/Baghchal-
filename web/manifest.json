@@ -1,11 +1,11 @@
 {
-    "name": "baghchal_app",
-    "short_name": "baghchal_app",
+    "name": "Baghchal",
+    "short_name": "Baghchal",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "A Flutter implementation of the Bagh Chal board game.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
