@@ -29,11 +29,11 @@ class BaghchalAi {
       history: _copyHistory(pieceLastMove),
     );
 
-    final moves = _orderedTigerMoves(state);
+    final moves = _candidateRootMoves(state);
     if (moves.isEmpty) return null;
 
     final depth = searchDepth ?? _searchDepthFor(state);
-    final budget = _SearchBudget(_nodeBudgetFor(state));
+    final rootBudget = max(3000, _nodeBudgetFor(state) ~/ moves.length);
     final cache = <String, int>{};
     var alpha = _goatWinScore * 2;
     const beta = _tigerWinScore * 2;
@@ -41,6 +41,7 @@ class BaghchalAi {
     var bestMove = moves.first;
 
     for (final move in moves) {
+      final budget = _SearchBudget(rootBudget);
       final next = _applyTigerMove(state, move);
       final score = _minimax(next, depth - 1, alpha, beta, cache, budget) +
           _rootMoveBias(state, move);
@@ -57,6 +58,19 @@ class BaghchalAi {
       'to': bestMove.to,
       'capture': bestMove.capture,
     };
+  }
+
+  static List<_AiMove> _candidateRootMoves(_AiState state) {
+    final moves = _orderedTigerMoves(state);
+    final immediateWins = moves.where((move) {
+      return move.capture != null && state.goatsCaptured + 1 >= 5;
+    }).toList();
+    if (immediateWins.isNotEmpty) return immediateWins;
+
+    final safeMoves = moves.where((move) {
+      return !_allowsImmediateGoatWin(state, move);
+    }).toList();
+    return safeMoves.isEmpty ? moves : safeMoves;
   }
 
   static int _searchDepthFor(_AiState state) {
@@ -163,11 +177,11 @@ class BaghchalAi {
     final terminal = _terminalScore(state, 0);
     if (terminal != null) return terminal;
 
-    var score = state.goatsCaptured * 1800;
+    var score = state.goatsCaptured * 8000;
     final tigerMoves = _tigerMoves(state);
     final captureMoves = tigerMoves.where((move) => move.capture != null);
     score += tigerMoves.length * 35;
-    score += captureMoves.length * 260;
+    score += captureMoves.length * 900;
 
     for (final tiger in state.tigerIndices) {
       final moves = BaghchalRules.tigerMoves(
@@ -205,11 +219,24 @@ class BaghchalAi {
   }
 
   static int _rootMoveBias(_AiState state, _AiMove move) {
-    var score = move.capture == null ? 0 : 80;
+    var score = move.capture == null ? 0 : 12000;
     final next = _applyTigerMove(state, move);
     if (!_hasTigerMoves(next)) score -= 50000;
+    if (_allowsImmediateGoatWin(state, move)) score -= 200000;
     score += _spreadScore(next) ~/ 8;
     return score;
+  }
+
+  static bool _allowsImmediateGoatWin(_AiState state, _AiMove move) {
+    final afterTigerMove = _applyTigerMove(state, move);
+    if (afterTigerMove.goatsCaptured >= 5) return false;
+    if (!_hasTigerMoves(afterTigerMove)) return true;
+
+    for (final goatMove in _goatMoves(afterTigerMove)) {
+      final afterGoatMove = _applyGoatMove(afterTigerMove, goatMove);
+      if (!_hasTigerMoves(afterGoatMove)) return true;
+    }
+    return false;
   }
 
   static int _spreadScore(_AiState state) {
