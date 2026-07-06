@@ -1216,4 +1216,3 @@ class _BaghchalScreenState extends State<BaghchalScreen> {
     }
   }
 }
-

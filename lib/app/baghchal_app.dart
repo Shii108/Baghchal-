@@ -1,5 +1,10 @@
 import 'package:baghchal_app/models/ai_difficulty.dart';
 import 'package:baghchal_app/screens/baghchal_screen.dart';
+import 'package:baghchal_app/screens/home_screen.dart';
+import 'package:baghchal_app/screens/login_screen.dart';
+import 'package:baghchal_app/screens/signup_screen.dart';
+import 'package:baghchal_app/screens/play_with_friend_screen.dart';
+import 'package:baghchal_app/services/api_service.dart';
 import 'package:baghchal_app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 
@@ -46,13 +51,26 @@ class _BaghchalAppState extends State<BaghchalApp> {
           ),
         ),
       ),
-      home: BaghchalScreen(
-        key: ValueKey(_currentTheme),
-        theme: _currentTheme,
-        onThemeChange: _changeTheme,
-        difficulty: _difficulty,
-        onDifficultyChange: _changeDifficulty,
+      home: FutureBuilder<String?>(
+        future: ApiService.getToken(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
+          }
+
+          // If token exists, go to home, otherwise go to login
+          final isLoggedIn = snapshot.data != null;
+          return isLoggedIn ? const HomeScreen() : const LoginScreen();
+        },
       ),
+      routes: {
+        '/login': (context) => const LoginScreen(),
+        '/signup': (context) => const SignupScreen(),
+        '/home': (context) => const HomeScreen(),
+        '/play-with-friend': (context) => const PlayWithFriendScreen(),
+      },
       debugShowCheckedModeBanner: false,
     );
   }
