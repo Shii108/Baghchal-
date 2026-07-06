@@ -99,7 +99,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         onTap: () => Navigator.of(context).push(
                           MaterialPageRoute(
                             builder: (context) => BaghchalScreen(
-                              theme: const AppTheme(),
+                              theme: AppTheme.green,
                               onThemeChange: () {},
                               difficulty: AIDifficulty.medium,
                               onDifficultyChange: () {},
