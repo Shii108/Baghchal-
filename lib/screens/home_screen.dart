@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../screens/baghchal_screen.dart';
+import '../theme/app_theme.dart';
+import '../models/ai_difficulty.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -96,11 +98,11 @@ class _HomeScreenState extends State<HomeScreen> {
                         title: 'Play vs AI',
                         onTap: () => Navigator.of(context).push(
                           MaterialPageRoute(
-                            builder: (context) => const BaghchalScreen(
-                              theme: null,
-                              onThemeChange: null,
-                              difficulty: null,
-                              onDifficultyChange: null,
+                            builder: (context) => BaghchalScreen(
+                              theme: const AppTheme(),
+                              onThemeChange: () {},
+                              difficulty: AIDifficulty.medium,
+                              onDifficultyChange: () {},
                             ),
                           ),
                         ),

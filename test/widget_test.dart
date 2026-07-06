@@ -1,4 +1,5 @@
-import 'package:baghchal_app/main.dart';
+import 'package:baghchal_app/app/baghchal_app.dart';
+import 'package:baghchal_app/widgets/board_painter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

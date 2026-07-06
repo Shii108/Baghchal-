@@ -21,7 +21,7 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      final response = await ApiService.login(
+      await ApiService.login(
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
