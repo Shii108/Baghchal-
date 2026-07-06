@@ -11,11 +11,20 @@ class PlayWithFriendScreen extends StatefulWidget {
 class _PlayWithFriendScreenState extends State<PlayWithFriendScreen> {
   late Future<List<dynamic>> _playersFuture;
   late Future<List<dynamic>> _requestsFuture;
+  bool _isGuest = false;
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _checkGuestStatus();
+  }
+
+  Future<void> _checkGuestStatus() async {
+    final isGuest = await ApiService.isGuest();
+    setState(() => _isGuest = isGuest);
+    if (!isGuest) {
+      _loadData();
+    }
   }
 
   void _loadData() {
@@ -67,6 +76,39 @@ class _PlayWithFriendScreenState extends State<PlayWithFriendScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isGuest) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Play with Friend')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.lock_outline, size: 64, color: Colors.amber),
+                const SizedBox(height: 24),
+                const Text(
+                  'Guest Mode',
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Multiplayer mode is not available in guest mode. Please sign up or login to play with friends!',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey),
+                ),
+                const SizedBox(height: 32),
+                ElevatedButton(
+                  onPressed: () => Navigator.of(context).pushReplacementNamed('/login'),
+                  child: const Text('Go to Login'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return DefaultTabController(
       length: 2,
       child: Scaffold(

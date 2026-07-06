@@ -14,11 +14,28 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   Map<String, dynamic>? _user;
   bool _isLoading = true;
+  bool _isGuest = false;
 
   @override
   void initState() {
     super.initState();
-    _loadUser();
+    _checkUserStatus();
+  }
+
+  Future<void> _checkUserStatus() async {
+    try {
+      final isGuest = await ApiService.isGuest();
+      setState(() => _isGuest = isGuest);
+      
+      if (!isGuest) {
+        await _loadUser();
+      } else {
+        setState(() => _isLoading = false);
+      }
+    } catch (e) {
+      print('Error checking user status: $e');
+      setState(() => _isLoading = false);
+    }
   }
 
   Future<void> _loadUser() async {
@@ -34,7 +51,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _logout() async {
     try {
-      await ApiService.logout();
+      if (_isGuest) {
+        await ApiService.clearGuest();
+      } else {
+        await ApiService.logout();
+      }
       if (mounted) {
         Navigator.of(context).pushReplacementNamed('/login');
       }
@@ -78,6 +99,36 @@ class _HomeScreenState extends State<HomeScreen> {
                             Text(
                               'Wins: ${_user!['wins']} | Losses: ${_user!['losses']}',
                               style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                  ] else if (_isGuest) ...[
+                    Card(
+                      color: Colors.grey[800],
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.person_outline, color: Colors.amber),
+                                const SizedBox(width: 12),
+                                Text(
+                                  'Guest Mode',
+                                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                    color: Colors.amber,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Your progress won\'t be saved. Sign up or login to keep your stats!',
+                              style: TextStyle(color: Colors.grey),
                             ),
                           ],
                         ),

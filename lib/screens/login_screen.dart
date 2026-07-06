@@ -105,9 +105,33 @@ class _LoginScreenState extends State<LoginScreen> {
               onPressed: () => Navigator.of(context).pushNamed('/signup'),
               child: const Text('Don\'t have account? Sign Up'),
             ),
+            const SizedBox(height: 16),
+            const Divider(),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: _playAsGuest,
+              icon: const Icon(Icons.person_outline),
+              label: const Text('Play as Guest'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.grey[700],
+              ),
+            ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _playAsGuest() async {
+    try {
+      await ApiService.setAsGuest();
+      if (mounted) {
+        Navigator.of(context).pushReplacementNamed('/home');
+      }
+    } catch (e) {
+      setState(() {
+        _error = 'Failed to start guest mode: $e';
+      });
+    }
   }
 }

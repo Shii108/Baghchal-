@@ -5,6 +5,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 class ApiService {
   static const String baseUrl = 'http://localhost:5000/api';
   static const storage = FlutterSecureStorage();
+  static const String _guestKey = 'is_guest';
+  static const String _guestIdKey = 'guest_id';
 
   // Auth endpoints
   static Future<Map<String, dynamic>> signup({
@@ -83,6 +85,27 @@ class ApiService {
 
   static Future<String?> getToken() async {
     return await storage.read(key: 'token');
+  }
+
+  // Guest mode functions
+  static Future<void> setAsGuest() async {
+    final guestId = 'guest_${DateTime.now().millisecondsSinceEpoch}';
+    await storage.write(key: _guestKey, value: 'true');
+    await storage.write(key: _guestIdKey, value: guestId);
+  }
+
+  static Future<bool> isGuest() async {
+    final guest = await storage.read(key: _guestKey);
+    return guest == 'true';
+  }
+
+  static Future<String?> getGuestId() async {
+    return await storage.read(key: _guestIdKey);
+  }
+
+  static Future<void> clearGuest() async {
+    await storage.delete(key: _guestKey);
+    await storage.delete(key: _guestIdKey);
   }
 
   // Players endpoints

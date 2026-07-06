@@ -14,6 +14,15 @@ class BaghchalApp extends StatefulWidget {
 }
 
 class _BaghchalAppState extends State<BaghchalApp> {
+  Future<Map<String, dynamic>> _checkAuthStatus() async {
+    final token = await ApiService.getToken();
+    final isGuest = await ApiService.isGuest();
+    return {
+      'isLoggedIn': token != null,
+      'isGuest': isGuest,
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -31,8 +40,8 @@ class _BaghchalAppState extends State<BaghchalApp> {
           ),
         ),
       ),
-      home: FutureBuilder<String?>(
-        future: ApiService.getToken(),
+      home: FutureBuilder<Map<String, dynamic>>(
+        future: _checkAuthStatus(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Scaffold(
@@ -40,9 +49,14 @@ class _BaghchalAppState extends State<BaghchalApp> {
             );
           }
 
-          // If token exists, go to home, otherwise go to login
-          final isLoggedIn = snapshot.data != null;
-          return isLoggedIn ? const HomeScreen() : const LoginScreen();
+          final data = snapshot.data ?? {};
+          final isLoggedIn = data['isLoggedIn'] as bool? ?? false;
+          final isGuest = data['isGuest'] as bool? ?? false;
+          
+          if (isLoggedIn || isGuest) {
+            return const HomeScreen();
+          }
+          return const LoginScreen();
         },
       ),
       routes: {
